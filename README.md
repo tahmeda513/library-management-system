@@ -100,6 +100,7 @@ LibrarySystem/
 │   ├── MemberDAO.java
 │   └── BorrowRecordDAO.java
 ├── ui/
+│   ├── ConsoleUI.java                 ← Text-based menu-driven interface
 │   ├── MainWindow.java                ← Main JFrame with tabbed navigation
 │   ├── DashboardPanel.java            ← Live statistics view
 │   ├── BookPanel.java
@@ -107,10 +108,17 @@ LibrarySystem/
 │   └── BorrowPanel.java
 ├── util/
 │   └── InputValidator.java            ← Centralised validation utility
+├── test/
+│   ├── BookDAOTest.java
+│   ├── MemberDAOTest.java
+│   └── BorrowRecordDAOTest.java
 ├── lib/
 │   └── sqlite-jdbc.jar                ← SQLite JDBC driver
 ├── out/                               ← Compiled .class files
-├── build.bat                          ← Windows build \& run script
+├── build.sh                           ← Linux/macOS build & run script
+├── build.bat                          ← Windows build & run script
+├── run-console.sh / run-console.bat   ← Convenience launchers (console mode)
+├── run-gui.sh / run-gui.bat           ← Convenience launchers (GUI mode)
 └── README.md
 ```
 
@@ -136,27 +144,45 @@ https://repo1.maven.org/maven2/org/xerial/sqlite-jdbc/3.45.1.0/
 **Windows:**
 
 ```bat
-build.bat
+build.bat           ← console UI (default)
+build.bat --gui     ← Swing GUI
+build.bat --test    ← compile and run JUnit tests
 ```
 
 **Linux / macOS:**
 
 ```bash
-# Compile
-find . -name "\*.java" | grep -v "/out/" | xargs javac --release 22 -cp lib/sqlite-jdbc.jar -d out
+./build.sh          # console UI (default)
+./build.sh --gui    # Swing GUI
+./build.sh --test   # compile and run JUnit tests
+```
 
-# Run
-java -cp out:lib/sqlite-jdbc.jar Main
+Alternatively, use the dedicated convenience scripts:
+
+```bash
+# Linux / macOS
+./run-console.sh    # compile + launch console UI
+./run-gui.sh        # compile + launch Swing GUI
+```
+
+```bat
+:: Windows
+run-console.bat
+run-gui.bat
 ```
 
 **Manual compile + run (cross-platform):**
 
 ```bash
 # Compile
-find src -name "\*.java" | xargs javac --release 22 -cp lib/sqlite-jdbc.jar -d out
+find . -name "*.java" -not -path "./out/*" -not -path "./test/*" | \
+  xargs javac --release 22 -cp lib/sqlite-jdbc.jar -d out
 
-# Run
+# Run console UI
 java -cp out:lib/sqlite-jdbc.jar Main
+
+# Run Swing GUI
+java -cp out:lib/sqlite-jdbc.jar Main --gui
 ```
 
 ### 3\. IDE Setup (NetBeans / VS Code / IntelliJ)
@@ -168,12 +194,28 @@ java -cp out:lib/sqlite-jdbc.jar Main
 
 ## Running the Application
 
+By default the application launches the **console (CLI) interface**. Pass `--gui` to start the Swing GUI instead.
+
 On launch, the application will:
 
 1. Connect to (or create) `library.db` in the working directory.
 2. Create all required tables if they do not already exist.
 3. Seed 3 sample books, 3 members, and 3 borrow records on first run.
-4. Open the main GUI window with a tabbed interface.
+4. Start the console menu **or** open the main GUI window if `--gui` was passed.
+
+### Console UI (default)
+
+The console UI presents a text-based, menu-driven interface with five top-level menus:
+
+1. **Manage Books** — add, view, update, delete books
+2. **Manage Members** — register, view, update, delete members
+3. **Manage Borrowing Records** — log, view, update, delete borrow records
+4. **Search Records** — search books/members/records by keyword
+5. **Exit System**
+
+### GUI (`--gui` flag)
+
+Pass `--gui` (or use `run-gui.sh` / `run-gui.bat`) to launch the Swing tabbed interface instead.
 
 ### Dashboard Tab
 
@@ -292,20 +334,21 @@ CREATE TABLE borrow\_records (
 ### `BookDAO`
 
 * `findAll(String sortColumn, boolean ascending)` — sorted retrieval
-* `search(String title, String author, String category)` — multi-field search
-* `findByAvailability(String status)` — filter by status
+* `search(String keyword)` — single-keyword search across title, author, category, and book ID
+* `filterByStatus(String status)` — filter by availability status
+* `filterByCategory(String category)` — filter by category
 
 ### `MemberDAO`
 
-* `searchByName(String name)` — partial-match name search
-* `findByMembershipType(String type)` — filter by type
+* `search(String keyword)` — keyword search across name and email
+* `filterByType(String type)` — filter by membership type
 
 ### `BorrowRecordDAO`
 
 * `findOverdue()` — records past their due date with status "Borrowed"
-* `findByMemberId(int memberId)` — borrowing history for a member
-* `findByBookId(int bookId)` — borrowing history for a book
-* `findByDateRange(LocalDate from, LocalDate to)` — date-range filter
+* `findByMember(int memberId)` — borrowing history for a member
+* `findByBook(int bookId)` — borrowing history for a book
+* `findByDateRange(String fromDate, String toDate)` — date-range filter
 * `findByStatus(String status)` — filter by return status
 
 ### `DatabaseManager` (Singleton)
@@ -319,7 +362,11 @@ CREATE TABLE borrow\_records (
 * `isPositiveInteger(String value)` — numeric ID validation
 * `isValidEmail(String email)` — regex email check
 * `isValidDate(String date)` — `yyyy-MM-dd` format check
-* `isDateAfter(LocalDate start, LocalDate end)` — date range validation
+* `isDueDateAfterBorrowDate(String borrowDate, String dueDate)` — date range validation
+* `isValidMembershipType(String type)` — validates against allowed membership types
+* `isValidAvailabilityStatus(String status)` — validates against allowed book statuses
+* `isValidReturnStatus(String status)` — validates against allowed return statuses
+* `parseDate(String date)` — parses a `yyyy-MM-dd` string to `LocalDate`
 
 ## Error Handling
 
